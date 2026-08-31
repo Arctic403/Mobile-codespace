@@ -13,11 +13,12 @@ const port = Number(process.env.PORT || 4173);
 const host = process.env.HOST || '0.0.0.0';
 const codespaceName = process.env.CODESPACE_NAME || '';
 const forwardingDomain = process.env.GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN || 'app.github.dev';
-const pagesOrigin = process.env.MOBILE_PAGES_ORIGIN || 'https://arctic403.github.io';
+const uiBase = process.env.MOBILE_UI_BASE || 'https://arctic403.github.io/Mobile-codespace/';
 const MAX_FILE_BYTES = 2 * 1024 * 1024;
 const MAX_OUTPUT_BYTES = 2 * 1024 * 1024;
 const authCache = new Map();
 const ignoredNames = new Set(['.git', 'node_modules', '.next', 'dist', 'build', '.cache', '.turbo', '.vite']);
+const uiFiles = new Set(['index.html', 'app.js', 'styles.css', 'connection.css', 'mode.css', 'manifest.json', 'sw.js']);
 
 class HttpError extends Error {
   constructor(status, message) {
@@ -26,17 +27,27 @@ class HttpError extends Error {
   }
 }
 
-function allowedOrigin(origin) {
-  if (!origin) return true;
-  return origin === pagesOrigin || origin === `https://${codespaceName}-${port}.${forwardingDomain}`;
+function forwardedHost() {
+  return codespaceName ? `${codespaceName}-${port}.${forwardingDomain}`.toLowerCase() : '';
+}
+
+function isTrustedPrivateOrigin(req) {
+  const expectedHost = forwardedHost();
+  if (!expectedHost) return false;
+  const requestHost = String(req.headers.host || '').split(':')[0].toLowerCase();
+  if (requestHost !== expectedHost) return false;
+  const origin = String(req.headers.origin || '');
+  if (origin && origin !== `https://${expectedHost}`) return false;
+  const site = String(req.headers['sec-fetch-site'] || '');
+  return !site || site === 'same-origin' || site === 'none';
 }
 
 function applyCors(req, res) {
-  const origin = req.headers.origin;
-  if (origin && allowedOrigin(origin)) {
+  const origin = String(req.headers.origin || '');
+  const expected = forwardedHost();
+  if (origin && expected && origin === `https://${expected}`) {
     res.setHeader('access-control-allow-origin', origin);
     res.setHeader('vary', 'Origin');
-    res.setHeader('access-control-allow-credentials', 'false');
     res.setHeader('access-control-allow-headers', 'authorization, content-type');
     res.setHeader('access-control-allow-methods', 'GET, PUT, POST, DELETE, OPTIONS');
     res.setHeader('access-control-max-age', '600');
@@ -68,16 +79,13 @@ async function readJson(req) {
     if (size > 3 * 1024 * 1024) throw new HttpError(413, 'Request body too large');
     chunks.push(chunk);
   }
-  if (!chunks.length) return {};
-  return JSON.parse(Buffer.concat(chunks).toString('utf8'));
+  return chunks.length ? JSON.parse(Buffer.concat(chunks).toString('utf8')) : {};
 }
 
 function safePath(input = '') {
   const clean = String(input).replace(/^[/\\]+/, '');
   const resolved = path.resolve(root, clean);
-  if (resolved !== root && !resolved.startsWith(root + path.sep)) {
-    throw new HttpError(400, 'Path is outside the workspace');
-  }
+  if (resolved !== root && !resolved.startsWith(root + path.sep)) throw new HttpError(400, 'Path is outside the workspace');
   return resolved;
 }
 
@@ -87,8 +95,10 @@ function relativeFromRoot(absPath) {
 }
 
 async function authorize(req) {
+  if (isTrustedPrivateOrigin(req)) return;
+
   const value = String(req.headers.authorization || '');
-  if (!value.startsWith('Bearer ')) throw new HttpError(401, 'GitHub token required');
+  if (!value.startsWith('Bearer ')) throw new HttpError(401, 'Open Mobile Codespace through the private Codespaces port');
   const token = value.slice(7).trim();
   if (!token) throw new HttpError(401, 'GitHub token required');
 
@@ -99,8 +109,7 @@ async function authorize(req) {
   }
 
   const digest = createHash('sha256').update(token).digest('hex');
-  const cachedUntil = authCache.get(digest) || 0;
-  if (cachedUntil > Date.now()) return;
+  if ((authCache.get(digest) || 0) > Date.now()) return;
 
   let response;
   try {
@@ -115,7 +124,6 @@ async function authorize(req) {
   } catch {
     throw new HttpError(503, 'Could not verify GitHub access');
   }
-
   if (!response.ok) throw new HttpError(401, 'Token cannot access this Codespace');
   const info = await response.json();
   if (info?.name !== codespaceName) throw new HttpError(403, 'Codespace identity mismatch');
@@ -132,12 +140,8 @@ async function runProcess(command, args = [], options = {}) {
       shell: false,
       stdio: ['pipe', 'pipe', 'pipe']
     });
-
-    let stdout = '';
-    let stderr = '';
-    let truncated = false;
-    let timedOut = false;
-
+    let stdout = '', stderr = '';
+    let truncated = false, timedOut = false;
     const append = (target, chunk) => {
       const str = chunk.toString();
       if (target.length + str.length > MAX_OUTPUT_BYTES) {
@@ -146,20 +150,16 @@ async function runProcess(command, args = [], options = {}) {
       }
       return target + str;
     };
-
     child.stdout.on('data', (chunk) => { stdout = append(stdout, chunk); });
     child.stderr.on('data', (chunk) => { stderr = append(stderr, chunk); });
     child.on('error', (error) => resolve({ ok: false, code: null, stdout, stderr: stderr + error.message, truncated, timedOut }));
-
     const timer = setTimeout(() => {
       timedOut = true;
       child.kill('SIGTERM');
       setTimeout(() => child.kill('SIGKILL'), 1500).unref();
     }, timeoutMs);
-
     if (options.stdin) child.stdin.write(options.stdin);
     child.stdin.end();
-
     child.on('close', (code) => {
       clearTimeout(timer);
       resolve({ ok: code === 0 && !timedOut, code, stdout, stderr, truncated, timedOut });
@@ -202,7 +202,12 @@ async function listDirectory(rel = '') {
     }));
 }
 
-async function serveStatic(res, pathname) {
+const contentTypes = {
+  '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8',
+  '.json': 'application/json; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.ico': 'image/x-icon'
+};
+
+async function serveLocalStatic(res, pathname) {
   const requested = pathname === '/' ? 'index.html' : pathname.replace(/^\//, '');
   const abs = path.resolve(publicDir, requested);
   if (!abs.startsWith(publicDir + path.sep) && abs !== publicDir) return false;
@@ -210,19 +215,29 @@ async function serveStatic(res, pathname) {
     const stat = await fs.stat(abs);
     if (!stat.isFile()) return false;
     const ext = path.extname(abs).toLowerCase();
-    const types = {
-      '.html': 'text/html; charset=utf-8',
-      '.js': 'text/javascript; charset=utf-8',
-      '.css': 'text/css; charset=utf-8',
-      '.json': 'application/json; charset=utf-8',
-      '.svg': 'image/svg+xml',
-      '.png': 'image/png',
-      '.ico': 'image/x-icon'
-    };
     res.statusCode = 200;
-    res.setHeader('content-type', types[ext] || 'application/octet-stream');
-    res.setHeader('cache-control', ext === '.html' ? 'no-store' : 'public, max-age=300');
+    res.setHeader('content-type', contentTypes[ext] || 'application/octet-stream');
+    res.setHeader('cache-control', ext === '.html' ? 'no-store' : 'public, max-age=60');
     createReadStream(abs).pipe(res);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function serveRemoteUi(res, pathname) {
+  const requested = pathname === '/' ? 'index.html' : pathname.replace(/^\//, '');
+  if (!uiFiles.has(requested)) return false;
+  try {
+    const response = await fetch(new URL(requested, uiBase), { headers: { 'user-agent': 'mobile-codespace-bridge' } });
+    if (!response.ok) return false;
+    const body = Buffer.from(await response.arrayBuffer());
+    const ext = path.extname(requested).toLowerCase();
+    res.statusCode = 200;
+    res.setHeader('content-type', response.headers.get('content-type') || contentTypes[ext] || 'application/octet-stream');
+    res.setHeader('cache-control', requested === 'index.html' ? 'no-store' : 'public, max-age=60');
+    res.setHeader('content-length', body.length);
+    res.end(body);
     return true;
   } catch {
     return false;
@@ -246,6 +261,7 @@ async function api(req, res, url) {
       codespace: codespaceName,
       forwardingDomain,
       backendPort: port,
+      privateForwarding: true,
       node: node.stdout.trim(),
       codex: codex.stdout.trim() || null,
       git
@@ -297,19 +313,11 @@ async function api(req, res, url) {
     return json(res, 200, { ok: true, result });
   }
 
-  if (req.method === 'GET' && pathname === '/api/git/status') {
-    return json(res, 200, { ok: true, git: await getGitStatus() });
-  }
+  if (req.method === 'GET' && pathname === '/api/git/status') return json(res, 200, { ok: true, git: await getGitStatus() });
 
   if (req.method === 'POST' && pathname === '/api/git/action') {
     const body = await readJson(req);
-    const allowed = {
-      stageAll: 'git add -A',
-      unstageAll: 'git reset',
-      pull: 'git pull --ff-only',
-      push: 'git push',
-      fetch: 'git fetch --prune'
-    };
+    const allowed = { stageAll: 'git add -A', unstageAll: 'git reset', pull: 'git pull --ff-only', push: 'git push', fetch: 'git fetch --prune' };
     let command = allowed[body.action];
     if (body.action === 'commit') {
       const message = String(body.message || '').trim();
@@ -338,23 +346,20 @@ const server = http.createServer(async (req, res) => {
   applyCors(req, res);
   try {
     const url = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`);
-
     if (req.method === 'OPTIONS') {
-      if (!allowedOrigin(req.headers.origin)) return json(res, 403, { ok: false, error: 'Origin not allowed' });
       res.statusCode = 204;
       return res.end();
     }
-
     if (url.pathname.startsWith('/api/')) {
       const handled = await api(req, res, url);
       if (handled !== false) return;
       return json(res, 404, { ok: false, error: 'API route not found' });
     }
-
-    if (await serveStatic(res, url.pathname)) return;
+    if (await serveLocalStatic(res, url.pathname)) return;
+    if (await serveRemoteUi(res, url.pathname)) return;
     if (req.method === 'GET') {
-      const index = await fs.readFile(path.join(publicDir, 'index.html'), 'utf8');
-      return text(res, 200, index, 'text/html; charset=utf-8');
+      const fallback = `<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1"><body style="font-family:system-ui;background:#111;color:#fff;padding:24px"><h2>Mobile Codespace bridge is running</h2><p>The UI could not be loaded from GitHub Pages. Refresh in a moment.</p></body>`;
+      return text(res, 200, fallback, 'text/html; charset=utf-8');
     }
     return text(res, 404, 'Not found');
   } catch (error) {
@@ -364,7 +369,7 @@ const server = http.createServer(async (req, res) => {
 });
 
 server.listen(port, host, () => {
-  console.log(`Mobile Codespace backend listening on http://${host}:${port}`);
+  console.log(`Mobile Codespace bridge listening on http://${host}:${port}`);
   console.log(`Workspace root: ${root}`);
-  console.log(codespaceName ? `Codespace: ${codespaceName}` : 'Running outside GitHub Codespaces');
+  console.log(codespaceName ? `Private Codespaces URL: https://${forwardedHost()}` : 'Running outside GitHub Codespaces');
 });
