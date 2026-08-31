@@ -1,4 +1,4 @@
-const CACHE = 'mobile-codespace-v2';
+const CACHE = 'mobile-codespace-v3';
 const base = new URL('./', self.location.href);
 const SHELL = ['./', './styles.css', './connection.css', './app.js', './manifest.json'].map((p) => new URL(p, base).href);
 
