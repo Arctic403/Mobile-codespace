@@ -3,12 +3,13 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1" />
-  <meta name="theme-color" content="#0a0a0b" />
+  <meta name="theme-color" content="#080809" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="Codespace" />
-  <link rel="manifest" href="/manifest.json" />
-  <link rel="stylesheet" href="/styles.css" />
+  <link rel="manifest" href="./manifest.json" />
+  <link rel="stylesheet" href="./styles.css" />
+  <link rel="stylesheet" href="./connection.css" />
   <title>Mobile Codespace</title>
 </head>
 <body>
@@ -21,51 +22,42 @@
           <span id="workspaceLabel">Connecting…</span>
         </div>
       </div>
-      <button id="refreshBtn" class="icon-btn" aria-label="Refresh">↻</button>
+      <div class="top-actions">
+        <button id="connectionBtn" class="icon-btn" aria-label="Connection">⌁</button>
+        <button id="refreshBtn" class="icon-btn" aria-label="Refresh">↻</button>
+      </div>
     </header>
 
     <div id="statusStrip" class="status-strip">
-      <span class="status-dot"></span>
+      <span class="status-dot connecting"></span>
       <span id="branchLabel">—</span>
       <span class="status-spacer"></span>
-      <span id="codexLabel">Codex…</span>
+      <span id="codexLabel">offline</span>
     </div>
 
     <main class="main-content">
       <section class="panel active" data-panel="files">
         <div class="panel-head">
-          <div>
-            <p class="eyebrow">Workspace</p>
-            <h1>Files</h1>
-          </div>
+          <div><p class="eyebrow">Workspace</p><h1>Files</h1></div>
           <button id="newBtn" class="pill-btn">＋ New</button>
         </div>
         <div id="breadcrumbs" class="breadcrumbs"></div>
-        <div id="fileList" class="file-list"></div>
+        <div id="fileList" class="file-list"><div class="empty">Connect your Codespace to browse files.</div></div>
       </section>
 
       <section class="panel" data-panel="editor">
         <div class="editor-head">
           <button id="editorBack" class="icon-btn">‹</button>
-          <div class="editor-title-wrap">
-            <strong id="editorTitle">No file open</strong>
-            <span id="editorMeta">Select a file</span>
-          </div>
+          <div class="editor-title-wrap"><strong id="editorTitle">No file open</strong><span id="editorMeta">Select a file</span></div>
           <button id="saveBtn" class="pill-btn primary" disabled>Save</button>
         </div>
         <textarea id="editor" class="code-editor" spellcheck="false" autocapitalize="off" autocomplete="off" autocorrect="off" placeholder="Open a file from Files…"></textarea>
-        <div class="editor-footer">
-          <span id="dirtyLabel">Saved</span>
-          <button id="copyBtn" class="text-btn">Copy</button>
-        </div>
+        <div class="editor-footer"><span id="dirtyLabel">Saved</span><button id="copyBtn" class="text-btn">Copy</button></div>
       </section>
 
       <section class="panel" data-panel="terminal">
         <div class="panel-head compact">
-          <div>
-            <p class="eyebrow">Codespace</p>
-            <h1>Terminal</h1>
-          </div>
+          <div><p class="eyebrow">Codespace</p><h1>Terminal</h1></div>
           <button id="clearTerminal" class="pill-btn">Clear</button>
         </div>
         <div class="quick-row">
@@ -84,13 +76,10 @@
 
       <section class="panel" data-panel="git">
         <div class="panel-head compact">
-          <div>
-            <p class="eyebrow">Source Control</p>
-            <h1>Git</h1>
-          </div>
+          <div><p class="eyebrow">Source Control</p><h1>Git</h1></div>
           <button id="gitRefresh" class="pill-btn">Refresh</button>
         </div>
-        <div id="gitCard" class="git-card"></div>
+        <div id="gitCard" class="git-card"><div class="muted">Connect your Codespace first.</div></div>
         <div class="commit-box">
           <input id="commitMessage" type="text" placeholder="Commit message" autocomplete="off" />
           <div class="button-grid">
@@ -105,11 +94,8 @@
 
       <section class="panel" data-panel="codex">
         <div class="panel-head compact">
-          <div>
-            <p class="eyebrow">AI Agent</p>
-            <h1>Codex</h1>
-          </div>
-          <span id="codexBadge" class="badge">checking</span>
+          <div><p class="eyebrow">AI Agent</p><h1>Codex</h1></div>
+          <span id="codexBadge" class="badge">offline</span>
         </div>
         <div class="codex-card">
           <label for="codexPrompt">Task</label>
@@ -122,26 +108,19 @@
             <button id="codexRun" class="primary">Run Codex</button>
           </div>
         </div>
-        <div class="hint-card">
-          Codex runs inside this Codespace. Workspace-write can edit this repo but stays sandboxed to the workspace.
-        </div>
+        <div class="hint-card">Codex runs inside your Codespace. Workspace-write stays sandboxed to the workspace.</div>
         <pre id="codexOutput" class="codex-output muted">Codex output appears here.</pre>
       </section>
 
       <section class="panel" data-panel="preview">
-        <div class="panel-head compact">
-          <div>
-            <p class="eyebrow">Forwarded Port</p>
-            <h1>Preview</h1>
-          </div>
-        </div>
+        <div class="panel-head compact"><div><p class="eyebrow">Forwarded Port</p><h1>Preview</h1></div></div>
         <div class="preview-card">
           <label for="previewPort">App port</label>
           <div class="preview-row">
             <input id="previewPort" type="number" inputmode="numeric" value="3000" min="1" max="65535" />
             <button id="openPreview" class="primary">Open</button>
           </div>
-          <p id="previewUrl" class="preview-url">Start your app, then open its forwarded Codespaces port.</p>
+          <p id="previewUrl" class="preview-url">Connect a Codespace first.</p>
         </div>
       </section>
     </main>
@@ -155,6 +134,44 @@
     </nav>
   </div>
 
+  <div id="connectionScreen" class="connection-screen">
+    <div class="connection-card">
+      <div class="connection-card-head">
+        <div class="connection-logo">M</div>
+        <button id="closeConnection" class="icon-btn connection-close" aria-label="Close">×</button>
+      </div>
+      <h1>Your Codespace, without desktop VS Code.</h1>
+      <p>The UI stays on GitHub Pages. Your Linux machine can sleep when idle and wake again when you reconnect.</p>
+
+      <div class="connection-field">
+        <label for="githubToken">Fine-grained GitHub token</label>
+        <input id="githubToken" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="github_pat_…" />
+      </div>
+      <div class="connection-field">
+        <label for="backendUrl">Backend URL (optional override)</label>
+        <input id="backendUrl" type="url" inputmode="url" autocapitalize="off" spellcheck="false" placeholder="Auto-detected from your Codespace" />
+      </div>
+      <label class="auto-wake-row"><input id="autoWake" type="checkbox" checked /> <span>Automatically wake the Codespace when I open this app</span></label>
+
+      <div class="connection-actions">
+        <button id="connectNow">Connect only</button>
+        <button id="startCodespace" class="primary">Wake & connect</button>
+      </div>
+      <div class="connection-secondary">
+        <button id="stopCodespace">Stop Codespace</button>
+        <button id="openCodespaces">Open GitHub</button>
+        <button id="forgetConnection">Forget token</button>
+      </div>
+
+      <div id="connectionState" class="connection-state">
+        <span class="dot"></span><span id="connectionText">Connect your GitHub account to begin</span>
+      </div>
+      <div class="connection-help">
+        The token stays in Safari storage on this device and is never committed to the repo. For auto-wake, give it <strong>Codespaces metadata: Read</strong> and <strong>Codespaces lifecycle admin: Write</strong> for this repository.
+      </div>
+    </div>
+  </div>
+
   <div id="sheet" class="sheet-backdrop" hidden>
     <div class="sheet">
       <div class="sheet-handle"></div>
@@ -166,6 +183,6 @@
   </div>
 
   <div id="toast" class="toast" aria-live="polite"></div>
-  <script src="/app.js" type="module"></script>
+  <script src="./app.js" type="module"></script>
 </body>
 </html>
