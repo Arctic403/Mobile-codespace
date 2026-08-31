@@ -4,12 +4,12 @@
   "forwardPorts": [4173],
   "portsAttributes": {
     "4173": {
-      "label": "Mobile Codespace",
-      "onAutoForward": "openBrowser"
+      "label": "Mobile Codespace Backend",
+      "onAutoForward": "silent"
     }
   },
   "postCreateCommand": "npm install -g @openai/codex@latest --include=optional && npm run check",
-  "postStartCommand": "nohup npm start > /tmp/mobile-codespace.log 2>&1 &",
+  "postStartCommand": "bash .devcontainer/start-mobile.sh",
   "customizations": {
     "vscode": {
       "settings": {
