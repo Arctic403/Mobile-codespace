@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1" />
+  <meta name="theme-color" content="#0a0a0b" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Codespace" />
+  <link rel="manifest" href="/manifest.json" />
+  <link rel="stylesheet" href="/styles.css" />
+  <title>Mobile Codespace</title>
+</head>
+<body>
+  <div id="app" class="app-shell">
+    <header class="topbar">
+      <div class="brand-wrap">
+        <div class="brand-mark">M</div>
+        <div class="brand-copy">
+          <strong>Mobile Codespace</strong>
+          <span id="workspaceLabel">Connecting…</span>
+        </div>
+      </div>
+      <button id="refreshBtn" class="icon-btn" aria-label="Refresh">↻</button>
+    </header>
+
+    <div id="statusStrip" class="status-strip">
+      <span class="status-dot"></span>
+      <span id="branchLabel">—</span>
+      <span class="status-spacer"></span>
+      <span id="codexLabel">Codex…</span>
+    </div>
+
+    <main class="main-content">
+      <section class="panel active" data-panel="files">
+        <div class="panel-head">
+          <div>
+            <p class="eyebrow">Workspace</p>
+            <h1>Files</h1>
+          </div>
+          <button id="newBtn" class="pill-btn">＋ New</button>
+        </div>
+        <div id="breadcrumbs" class="breadcrumbs"></div>
+        <div id="fileList" class="file-list"></div>
+      </section>
+
+      <section class="panel" data-panel="editor">
+        <div class="editor-head">
+          <button id="editorBack" class="icon-btn">‹</button>
+          <div class="editor-title-wrap">
+            <strong id="editorTitle">No file open</strong>
+            <span id="editorMeta">Select a file</span>
+          </div>
+          <button id="saveBtn" class="pill-btn primary" disabled>Save</button>
+        </div>
+        <textarea id="editor" class="code-editor" spellcheck="false" autocapitalize="off" autocomplete="off" autocorrect="off" placeholder="Open a file from Files…"></textarea>
+        <div class="editor-footer">
+          <span id="dirtyLabel">Saved</span>
+          <button id="copyBtn" class="text-btn">Copy</button>
+        </div>
+      </section>
+
+      <section class="panel" data-panel="terminal">
+        <div class="panel-head compact">
+          <div>
+            <p class="eyebrow">Codespace</p>
+            <h1>Terminal</h1>
+          </div>
+          <button id="clearTerminal" class="pill-btn">Clear</button>
+        </div>
+        <div class="quick-row">
+          <button data-command="git status">git status</button>
+          <button data-command="npm test">npm test</button>
+          <button data-command="npm run build">build</button>
+          <button data-command="pwd">pwd</button>
+        </div>
+        <pre id="terminalOutput" class="terminal-output"><span class="muted">Run a command inside the Codespace.</span></pre>
+        <form id="terminalForm" class="terminal-form">
+          <span class="prompt">$</span>
+          <input id="terminalInput" type="text" enterkeyhint="send" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="command" />
+          <button type="submit" class="run-btn">Run</button>
+        </form>
+      </section>
+
+      <section class="panel" data-panel="git">
+        <div class="panel-head compact">
+          <div>
+            <p class="eyebrow">Source Control</p>
+            <h1>Git</h1>
+          </div>
+          <button id="gitRefresh" class="pill-btn">Refresh</button>
+        </div>
+        <div id="gitCard" class="git-card"></div>
+        <div class="commit-box">
+          <input id="commitMessage" type="text" placeholder="Commit message" autocomplete="off" />
+          <div class="button-grid">
+            <button data-git="stageAll">Stage all</button>
+            <button data-git="commit" class="primary">Commit</button>
+            <button data-git="pull">Pull</button>
+            <button data-git="push">Push</button>
+          </div>
+        </div>
+        <pre id="gitOutput" class="mini-output muted">Git output appears here.</pre>
+      </section>
+
+      <section class="panel" data-panel="codex">
+        <div class="panel-head compact">
+          <div>
+            <p class="eyebrow">AI Agent</p>
+            <h1>Codex</h1>
+          </div>
+          <span id="codexBadge" class="badge">checking</span>
+        </div>
+        <div class="codex-card">
+          <label for="codexPrompt">Task</label>
+          <textarea id="codexPrompt" placeholder="Example: Audit this repo, fix the mobile layout, run tests, and summarize what changed."></textarea>
+          <div class="codex-controls">
+            <select id="codexMode" aria-label="Codex sandbox mode">
+              <option value="workspace-write">Workspace write</option>
+              <option value="read-only">Read only</option>
+            </select>
+            <button id="codexRun" class="primary">Run Codex</button>
+          </div>
+        </div>
+        <div class="hint-card">
+          Codex runs inside this Codespace. Workspace-write can edit this repo but stays sandboxed to the workspace.
+        </div>
+        <pre id="codexOutput" class="codex-output muted">Codex output appears here.</pre>
+      </section>
+
+      <section class="panel" data-panel="preview">
+        <div class="panel-head compact">
+          <div>
+            <p class="eyebrow">Forwarded Port</p>
+            <h1>Preview</h1>
+          </div>
+        </div>
+        <div class="preview-card">
+          <label for="previewPort">App port</label>
+          <div class="preview-row">
+            <input id="previewPort" type="number" inputmode="numeric" value="3000" min="1" max="65535" />
+            <button id="openPreview" class="primary">Open</button>
+          </div>
+          <p id="previewUrl" class="preview-url">Start your app, then open its forwarded Codespaces port.</p>
+        </div>
+      </section>
+    </main>
+
+    <nav class="bottom-nav" aria-label="Primary">
+      <button class="nav-btn active" data-target="files"><span>▤</span><small>Files</small></button>
+      <button class="nav-btn" data-target="terminal"><span>›_</span><small>Terminal</small></button>
+      <button class="nav-btn" data-target="git"><span>⑂</span><small>Git</small></button>
+      <button class="nav-btn" data-target="codex"><span>✦</span><small>Codex</small></button>
+      <button class="nav-btn" data-target="preview"><span>↗</span><small>Preview</small></button>
+    </nav>
+  </div>
+
+  <div id="sheet" class="sheet-backdrop" hidden>
+    <div class="sheet">
+      <div class="sheet-handle"></div>
+      <h2>Create</h2>
+      <button id="newFile">New file</button>
+      <button id="newFolder">New folder</button>
+      <button id="sheetCancel" class="ghost">Cancel</button>
+    </div>
+  </div>
+
+  <div id="toast" class="toast" aria-live="polite"></div>
+  <script src="/app.js" type="module"></script>
+</body>
+</html>
