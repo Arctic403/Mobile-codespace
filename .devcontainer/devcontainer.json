@@ -1,0 +1,20 @@
+{
+  "name": "Mobile Codespace",
+  "image": "mcr.microsoft.com/devcontainers/javascript-node:1-22-bookworm",
+  "forwardPorts": [4173],
+  "portsAttributes": {
+    "4173": {
+      "label": "Mobile Codespace",
+      "onAutoForward": "openPreview"
+    }
+  },
+  "postCreateCommand": "npm run check",
+  "postStartCommand": "nohup npm start > /tmp/mobile-codespace.log 2>&1 &",
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "workbench.startupEditor": "none"
+      }
+    }
+  }
+}
