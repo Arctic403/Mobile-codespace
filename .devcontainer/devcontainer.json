@@ -5,10 +5,10 @@
   "portsAttributes": {
     "4173": {
       "label": "Mobile Codespace",
-      "onAutoForward": "openPreview"
+      "onAutoForward": "openBrowser"
     }
   },
-  "postCreateCommand": "npm run check",
+  "postCreateCommand": "npm install -g @openai/codex@latest --include=optional && npm run check",
   "postStartCommand": "nohup npm start > /tmp/mobile-codespace.log 2>&1 &",
   "customizations": {
     "vscode": {
