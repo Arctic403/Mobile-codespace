@@ -1,13 +1,14 @@
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 
-const KEY = 'mobileCodespace.v4';
+const KEY = 'mobileCodespace.v5';
 const PORT = 4173;
 const GH = 'https://api.github.com';
+const LAUNCHER = 'https://arctic403.github.io/Mobile-codespace/';
+const DIRECT = location.hostname.endsWith('.app.github.dev');
 
 const S = {
   status: null,
-  backend: '',
   token: '',
   space: null,
   spaces: [],
@@ -25,9 +26,10 @@ const E = {
   save: $('#saveBtn'), dirty: $('#dirtyLabel'), term: $('#terminalOutput'), termIn: $('#terminalInput'), git: $('#gitCard'),
   gitOut: $('#gitOutput'), commit: $('#commitMessage'), prompt: $('#codexPrompt'), mode: $('#codexMode'), codexOut: $('#codexOutput'),
   codexRun: $('#codexRun'), port: $('#previewPort'), preview: $('#previewUrl'), toast: $('#toast'), sheet: $('#sheet'),
-  screen: $('#connectionScreen'), conn: $('#connectionState'), connText: $('#connectionText'), token: $('#githubToken'), backend: $('#backendUrl'),
+  screen: $('#connectionScreen'), conn: $('#connectionState'), connText: $('#connectionText'), token: $('#githubToken'),
   auto: $('#autoWake'), connect: $('#connectNow'), start: $('#startCodespace'), stop: $('#stopCodespace'),
-  spaceSelect: $('#codespaceSelect'), refreshSpaces: $('#refreshCodespaces')
+  spaceSelect: $('#codespaceSelect'), refreshSpaces: $('#refreshCodespaces'), openGitHub: $('#openCodespaces'),
+  forget: $('#forgetConnection'), closeConnection: $('#closeConnection'), connectionBtn: $('#connectionBtn')
 };
 
 function cfg() {
@@ -38,9 +40,8 @@ function saveCfg(patch) {
   localStorage.setItem(KEY, JSON.stringify(next));
   return next;
 }
-const norm = (x) => String(x || '').trim().replace(/\/+$/, '');
-const backendFor = (name) => name ? `https://${name}-${PORT}.app.github.dev` : '';
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const backendFor = (name) => name ? `https://${name}-${PORT}.app.github.dev` : '';
 
 function toast(message) {
   E.toast.textContent = message;
@@ -51,31 +52,31 @@ function toast(message) {
 
 function conn(kind, text) {
   S.connected = kind === 'online';
-  E.conn.classList.toggle('online', S.connected);
-  E.conn.classList.toggle('error', kind === 'error');
-  E.connText.textContent = text;
-  E.dot.classList.toggle('offline', ['offline', 'error'].includes(kind));
-  E.dot.classList.toggle('connecting', kind === 'connecting');
-  if (S.connected) E.dot.classList.remove('offline', 'connecting');
+  E.conn?.classList.toggle('online', S.connected);
+  E.conn?.classList.toggle('error', kind === 'error');
+  if (E.connText) E.connText.textContent = text;
+  E.dot?.classList.toggle('offline', ['offline', 'error'].includes(kind));
+  E.dot?.classList.toggle('connecting', kind === 'connecting');
+  if (S.connected) E.dot?.classList.remove('offline', 'connecting');
 }
 
-const showConn = () => { E.screen.hidden = false; };
-const hideConn = () => { E.screen.hidden = true; };
-function busy(v) {
-  S.busy = v;
-  [E.connect, E.start, E.stop, E.refreshSpaces].forEach((x) => { if (x) x.disabled = v; });
+const showConn = () => { if (E.screen) E.screen.hidden = false; };
+const hideConn = () => { if (E.screen) E.screen.hidden = true; };
+function busy(value) {
+  S.busy = value;
+  [E.connect, E.start, E.stop, E.refreshSpaces].forEach((el) => { if (el) el.disabled = value; });
 }
 
-async function gh(path, opt = {}) {
+async function gh(path, options = {}) {
   if (!S.token) throw new Error('GitHub token required');
   const response = await fetch(GH + path, {
-    ...opt,
+    ...options,
     headers: {
       accept: 'application/vnd.github+json',
       authorization: `Bearer ${S.token}`,
       'x-github-api-version': '2022-11-28',
-      ...(opt.body ? { 'content-type': 'application/json' } : {}),
-      ...(opt.headers || {})
+      ...(options.body ? { 'content-type': 'application/json' } : {}),
+      ...(options.headers || {})
     }
   });
   const data = await response.json().catch(() => ({}));
@@ -83,15 +84,12 @@ async function gh(path, opt = {}) {
   return data;
 }
 
-async function api(path, opt = {}) {
-  if (!S.backend) throw new Error('Codespace backend is not connected');
-  const response = await fetch(S.backend + path, {
-    ...opt,
-    mode: 'cors',
+async function api(path, options = {}) {
+  const response = await fetch(path, {
+    ...options,
     headers: {
-      authorization: `Bearer ${S.token}`,
-      ...(opt.body ? { 'content-type': 'application/json' } : {}),
-      ...(opt.headers || {})
+      ...(options.body ? { 'content-type': 'application/json' } : {}),
+      ...(options.headers || {})
     }
   });
   const data = await response.json().catch(() => ({}));
@@ -122,11 +120,11 @@ function renderSpaces(preferred = '') {
     opt.textContent = `${repo} — ${space.state || 'Unknown'}`;
     E.spaceSelect.appendChild(opt);
   }
-  if (S.spaces.some((x) => x.name === current)) E.spaceSelect.value = current;
-  else E.spaceSelect.value = S.spaces[0].name;
+  E.spaceSelect.value = S.spaces.some((x) => x.name === current) ? current : S.spaces[0].name;
 }
 
 async function refreshSpaceList({ quiet = false } = {}) {
+  if (DIRECT) return [];
   S.token = E.token.value.trim();
   if (!S.token) throw new Error('Paste your fine-grained GitHub token first');
   if (!quiet) conn('connecting', 'Loading your Codespaces…');
@@ -136,15 +134,9 @@ async function refreshSpaceList({ quiet = false } = {}) {
   const chosen = selectedSpace();
   if (chosen) {
     S.space = chosen;
-    if (!norm(E.backend.value) || E.backend.dataset.auto === '1') {
-      E.backend.value = backendFor(chosen.name);
-      E.backend.dataset.auto = '1';
-    }
     saveCfg({ token: S.token, codespaceName: chosen.name, auto: E.auto.checked });
-    if (!quiet) conn('offline', `${chosen.repository?.full_name || chosen.name} is ${chosen.state || 'ready to connect'}`);
-  } else if (!quiet) {
-    conn('error', 'No Codespaces are visible to this token');
-  }
+    if (!quiet) conn('offline', `${chosen.repository?.full_name || chosen.name} is ${chosen.state || 'ready'}`);
+  } else if (!quiet) conn('error', 'No Codespaces are visible to this token');
   return S.spaces;
 }
 
@@ -153,7 +145,7 @@ async function getSpace(name) {
 }
 
 async function waitSpace(name) {
-  for (let i = 0; i < 40; i++) {
+  for (let i = 0; i < 45; i++) {
     const x = await getSpace(name);
     S.space = x;
     conn('connecting', `${x.repository?.full_name || x.name}: ${x.state || 'starting'}…`);
@@ -164,18 +156,79 @@ async function waitSpace(name) {
   throw new Error('Codespace did not become ready in time');
 }
 
-async function tryMakePortPublic(name) {
+async function chooseFreshSpace() {
+  await refreshSpaceList({ quiet: true });
+  const x = selectedSpace();
+  if (!x) throw new Error('Choose a Codespace first');
+  S.space = x;
+  saveCfg({ codespaceName: x.name });
+  return x;
+}
+
+function enterPrivateWorkspace(space) {
+  const url = backendFor(space.name);
+  conn('connecting', 'Opening the private Mobile Bridge…');
+  location.href = url;
+}
+
+async function wake() {
+  if (DIRECT || S.busy) return;
+  busy(true);
   try {
-    await gh(`/user/codespaces/${encodeURIComponent(name)}/ports/${PORT}`, {
-      method: 'PUT',
-      body: JSON.stringify({ visibility: 'public' })
-    });
-  } catch {
-    // The devcontainer also requests public visibility; lack of token permission here should not block startup.
+    S.token = E.token.value.trim();
+    if (!S.token) throw new Error('Paste your fine-grained GitHub token first');
+    saveCfg({ token: S.token, auto: E.auto.checked });
+    let x = await chooseFreshSpace();
+    if (x.state !== 'Available') {
+      conn('connecting', `Starting ${x.repository?.full_name || x.name}…`);
+      await gh(`/user/codespaces/${encodeURIComponent(x.name)}/start`, { method: 'POST' });
+      x = await waitSpace(x.name);
+    }
+    saveCfg({ codespaceName: x.name });
+    enterPrivateWorkspace(x);
+  } catch (error) {
+    conn('error', error.message);
+    busy(false);
   }
 }
 
-async function backendConnect(retries = 18) {
+async function connectOnly() {
+  if (DIRECT || S.busy) return;
+  busy(true);
+  try {
+    S.token = E.token.value.trim();
+    if (!S.token) throw new Error('GitHub token required');
+    const x = await chooseFreshSpace();
+    if (x.state !== 'Available') throw new Error('That Codespace is asleep. Use Wake & open.');
+    enterPrivateWorkspace(x);
+  } catch (error) {
+    conn('error', error.message);
+    busy(false);
+  }
+}
+
+async function stopCodespace() {
+  if (DIRECT) {
+    location.href = LAUNCHER;
+    return;
+  }
+  if (S.busy) return;
+  busy(true);
+  try {
+    S.token = E.token.value.trim() || S.token;
+    const x = await chooseFreshSpace();
+    conn('connecting', `Stopping ${x.repository?.full_name || x.name}…`);
+    await gh(`/user/codespaces/${encodeURIComponent(x.name)}/stop`, { method: 'POST' });
+    conn('offline', `${x.repository?.full_name || x.name} stopped.`);
+    await refreshSpaceList({ quiet: true });
+  } catch (error) {
+    conn('error', error.message);
+  } finally {
+    busy(false);
+  }
+}
+
+async function backendConnect(retries = 20) {
   let last;
   for (let i = 0; i < retries; i++) {
     try {
@@ -189,129 +242,51 @@ async function backendConnect(retries = 18) {
       conn('online', `Connected to ${data.workspaceName || data.codespace}`);
       previewUrl();
       await loadDir(S.dir);
+      hideConn();
       return data;
     } catch (error) {
       last = error;
-      conn('connecting', 'Codespace is awake. Waiting for Mobile Bridge…');
-      await sleep(2500);
+      conn('connecting', 'Mobile Bridge is starting…');
+      await sleep(1800);
     }
   }
-  throw new Error(`Codespace is awake, but Mobile Bridge is not reachable. Rebuild this Codespace container once, then try again. (${last?.message || 'bridge offline'})`);
-}
-
-async function chooseFreshSpace() {
-  await refreshSpaceList({ quiet: true });
-  const x = selectedSpace();
-  if (!x) throw new Error('Choose a Codespace first');
-  S.space = x;
-  saveCfg({ codespaceName: x.name });
-  return x;
-}
-
-async function wake() {
-  if (S.busy) return;
-  busy(true);
-  try {
-    S.token = E.token.value.trim();
-    if (!S.token) throw new Error('Paste your fine-grained GitHub token first');
-    saveCfg({ token: S.token, auto: E.auto.checked });
-    conn('connecting', 'Finding your selected Codespace…');
-    let x = await chooseFreshSpace();
-    if (x.state !== 'Available') {
-      conn('connecting', `Starting ${x.repository?.full_name || x.name}…`);
-      await gh(`/user/codespaces/${encodeURIComponent(x.name)}/start`, { method: 'POST' });
-      x = await waitSpace(x.name);
-    }
-    await tryMakePortPublic(x.name);
-    const manual = norm(E.backend.value) && E.backend.dataset.auto !== '1' ? norm(E.backend.value) : '';
-    S.backend = manual || backendFor(x.name);
-    E.backend.value = S.backend;
-    E.backend.dataset.auto = manual ? '0' : '1';
-    saveCfg({ backendUrl: manual, codespaceName: x.name, auto: E.auto.checked });
-    conn('connecting', 'Codespace is awake. Connecting Mobile Bridge…');
-    await backendConnect(28);
-    hideConn();
-  } catch (error) {
-    conn('error', error.message);
-  } finally {
-    busy(false);
-  }
-}
-
-async function connectOnly() {
-  if (S.busy) return;
-  busy(true);
-  try {
-    S.token = E.token.value.trim();
-    if (!S.token) throw new Error('GitHub token required');
-    const x = await chooseFreshSpace();
-    const manual = norm(E.backend.value) && E.backend.dataset.auto !== '1' ? norm(E.backend.value) : '';
-    S.backend = manual || backendFor(x.name);
-    E.backend.value = S.backend;
-    E.backend.dataset.auto = manual ? '0' : '1';
-    saveCfg({ token: S.token, backendUrl: manual, codespaceName: x.name, auto: E.auto.checked });
-    conn('connecting', `Connecting to ${x.repository?.full_name || x.name}…`);
-    await backendConnect(12);
-    hideConn();
-  } catch (error) {
-    conn('error', error.message);
-  } finally {
-    busy(false);
-  }
-}
-
-async function stopCodespace() {
-  if (S.busy) return;
-  busy(true);
-  try {
-    S.token = E.token.value.trim() || S.token;
-    const x = await chooseFreshSpace();
-    conn('connecting', `Stopping ${x.repository?.full_name || x.name}…`);
-    await gh(`/user/codespaces/${encodeURIComponent(x.name)}/stop`, { method: 'POST' });
-    S.status = null;
-    S.connected = false;
-    E.ws.textContent = 'Sleeping';
-    E.branch.textContent = '—';
-    E.codex.textContent = 'offline';
-    conn('offline', `${x.repository?.full_name || x.name} stopped. Tap Wake & connect when you need it.`);
-    await refreshSpaceList({ quiet: true });
-  } catch (error) {
-    conn('error', error.message);
-  } finally {
-    busy(false);
-  }
+  throw last || new Error('Mobile Bridge is not responding');
 }
 
 async function bootstrap() {
+  if (DIRECT) {
+    document.documentElement.dataset.mode = 'workspace';
+    if (E.connectionBtn) E.connectionBtn.title = 'Back to Codespace launcher';
+    conn('connecting', 'Connecting to private Mobile Bridge…');
+    try {
+      await backendConnect(25);
+    } catch (error) {
+      conn('error', `${error.message}. Pull/rebuild the target repo if this is the first run.`);
+      showConn();
+    }
+    return;
+  }
+
+  document.documentElement.dataset.mode = 'launcher';
   const c = cfg();
   S.token = c.token || '';
   E.token.value = S.token;
   E.auto.checked = c.auto !== false;
-  E.backend.value = c.backendUrl || '';
-  E.backend.dataset.auto = c.backendUrl ? '0' : '1';
+  showConn();
   if (!S.token) {
     conn('offline', 'Paste your GitHub token, then load your Codespaces');
-    return showConn();
+    return;
   }
   try {
     await refreshSpaceList({ quiet: true });
     if (c.codespaceName && S.spaces.some((x) => x.name === c.codespaceName)) E.spaceSelect.value = c.codespaceName;
     const x = selectedSpace();
-    if (!x) {
-      conn('offline', 'Choose a Codespace');
-      return showConn();
-    }
+    if (!x) return conn('offline', 'Choose a Codespace');
     S.space = x;
-    if (!c.backendUrl) {
-      E.backend.value = backendFor(x.name);
-      E.backend.dataset.auto = '1';
-    }
     if (c.auto !== false) return wake();
-    conn('offline', `Ready to connect to ${x.repository?.full_name || x.name}`);
-    showConn();
+    conn('offline', `Ready: ${x.repository?.full_name || x.name}`);
   } catch (error) {
     conn('error', error.message);
-    showConn();
   }
 }
 
@@ -379,10 +354,10 @@ async function openFile(file) {
   } catch (error) { toast(error.message); }
 }
 
-function setDirty(v) {
-  S.dirty = v;
-  E.dirty.textContent = v ? 'Unsaved changes' : 'Saved';
-  E.dirty.style.color = v ? 'var(--warn)' : '';
+function setDirty(value) {
+  S.dirty = value;
+  E.dirty.textContent = value ? 'Unsaved changes' : 'Saved';
+  E.dirty.style.color = value ? 'var(--warn)' : '';
 }
 
 async function saveFile() {
@@ -402,7 +377,7 @@ const fmt = (r) => [r.stdout?.trimEnd(), r.stderr?.trimEnd(), r.timedOut ? '[com
 
 async function cmd(command) {
   command = command.trim();
-  if (!command) return;
+  if (!command || !S.connected) return;
   E.termIn.value = '';
   E.term.textContent = `$ ${command}\n…`;
   try {
@@ -414,13 +389,15 @@ async function cmd(command) {
 async function refreshGit() {
   if (!S.connected) return;
   try {
-    const data = await api('/api/git/status'), g = data.git, changes = g.changes || [];
+    const data = await api('/api/git/status');
+    const g = data.git, changes = g.changes || [];
     E.branch.textContent = g.branch || '—';
     E.git.innerHTML = `<div class="git-summary"><strong>${esc(g.branch || '—')}</strong><span class="muted">${changes.length} change${changes.length === 1 ? '' : 's'}</span></div><div class="git-changes">${changes.length ? changes.slice(0, 80).map((c) => `<div class="git-change"><span class="git-code">${esc(c.code)}</span><span>${esc(c.path)}</span></div>`).join('') : '<div class="muted">Working tree clean.</div>'}</div>`;
   } catch (error) { E.git.innerHTML = `<div class="muted">${esc(error.message)}</div>`; }
 }
 
 async function gitAction(action) {
+  if (!S.connected) return;
   E.gitOut.textContent = `Running ${action}…`;
   try {
     const data = await api('/api/git/action', { method: 'POST', body: JSON.stringify({ action, message: E.commit.value.trim() }) });
@@ -431,6 +408,7 @@ async function gitAction(action) {
 }
 
 async function runCodex() {
+  if (!S.connected) return toast('Connect to a Codespace first');
   const prompt = E.prompt.value.trim();
   if (!prompt) return toast('Enter a Codex task');
   E.codexRun.disabled = true;
@@ -453,6 +431,7 @@ function previewUrl() {
 }
 
 async function createEntry(kind) {
+  if (!S.connected) return;
   E.sheet.hidden = true;
   const name = prompt(kind === 'folder' ? 'Folder name' : 'File name');
   if (!name) return;
@@ -466,15 +445,24 @@ async function createEntry(kind) {
 }
 
 $$('.nav-btn').forEach((b) => { b.onclick = () => panel(b.dataset.target); });
-$('#refreshBtn').onclick = () => S.connected ? Promise.all([backendConnect(1), loadDir(S.dir)]) : showConn();
-$('#connectionBtn').onclick = showConn;
-$('#newBtn').onclick = () => { E.sheet.hidden = false; };
+$('#refreshBtn').onclick = () => DIRECT && S.connected ? Promise.all([backendConnect(1), loadDir(S.dir)]) : (DIRECT ? backendConnect(8).catch((e) => conn('error', e.message)) : refreshSpaceList().catch((e) => conn('error', e.message)));
+if (E.connectionBtn) E.connectionBtn.onclick = () => DIRECT ? (location.href = LAUNCHER) : showConn();
+$('#newBtn').onclick = () => { if (S.connected) E.sheet.hidden = false; else showConn(); };
 $('#sheetCancel').onclick = () => { E.sheet.hidden = true; };
 $('#newFile').onclick = () => createEntry('file');
 $('#newFolder').onclick = () => createEntry('folder');
 $('#editorBack').onclick = () => panel('files');
 E.save.onclick = saveFile;
 E.editor.oninput = () => setDirty(E.editor.value !== S.original);
+E.editor.onkeydown = (e) => {
+  if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 's') { e.preventDefault(); saveFile(); }
+  if (e.key === 'Tab') {
+    e.preventDefault();
+    const start = E.editor.selectionStart, end = E.editor.selectionEnd;
+    E.editor.setRangeText('  ', start, end, 'end');
+    E.editor.dispatchEvent(new Event('input'));
+  }
+};
 $('#copyBtn').onclick = async () => { await navigator.clipboard.writeText(E.editor.value); toast('Copied'); };
 $('#terminalForm').onsubmit = (e) => { e.preventDefault(); cmd(E.termIn.value); };
 $$('[data-command]').forEach((b) => { b.onclick = () => cmd(b.dataset.command); });
@@ -484,40 +472,36 @@ $$('[data-git]').forEach((b) => { b.onclick = () => gitAction(b.dataset.git); })
 E.codexRun.onclick = runCodex;
 E.port.oninput = previewUrl;
 $('#openPreview').onclick = () => { previewUrl(); if (E.preview.dataset.url) open(E.preview.dataset.url, '_blank', 'noopener'); };
-E.connect.onclick = connectOnly;
-E.start.onclick = wake;
-E.stop.onclick = stopCodespace;
-E.refreshSpaces.onclick = async () => {
-  if (S.busy) return;
+if (E.connect) E.connect.onclick = connectOnly;
+if (E.start) E.start.onclick = wake;
+if (E.stop) E.stop.onclick = stopCodespace;
+if (E.refreshSpaces) E.refreshSpaces.onclick = async () => {
+  if (S.busy || DIRECT) return;
   busy(true);
   try { await refreshSpaceList(); } catch (error) { conn('error', error.message); } finally { busy(false); }
 };
-E.spaceSelect.onchange = () => {
+if (E.spaceSelect) E.spaceSelect.onchange = () => {
   const x = selectedSpace();
   if (!x) return;
   S.space = x;
-  S.backend = '';
-  E.backend.value = backendFor(x.name);
-  E.backend.dataset.auto = '1';
-  saveCfg({ codespaceName: x.name, backendUrl: '' });
+  saveCfg({ codespaceName: x.name });
   conn('offline', `${x.repository?.full_name || x.name} selected — ${x.state || 'ready'}`);
 };
-E.backend.oninput = () => { E.backend.dataset.auto = norm(E.backend.value) ? '0' : '1'; };
-$('#closeConnection').onclick = () => { if (S.connected) hideConn(); };
-$('#openCodespaces').onclick = () => open('https://github.com/codespaces', '_blank', 'noopener');
-$('#forgetConnection').onclick = () => {
+if (E.closeConnection) E.closeConnection.onclick = () => DIRECT && S.connected ? hideConn() : (DIRECT ? (location.href = LAUNCHER) : hideConn());
+if (E.openGitHub) E.openGitHub.onclick = () => open('https://github.com/codespaces', '_blank', 'noopener');
+if (E.forget) E.forget.onclick = () => {
+  if (DIRECT) { location.href = LAUNCHER; return; }
   localStorage.removeItem(KEY);
-  S.token = S.backend = '';
-  S.connected = false;
+  S.token = '';
   S.spaces = [];
-  E.token.value = E.backend.value = '';
+  E.token.value = '';
   renderSpaces();
   conn('offline', 'Saved connection removed from this device');
 };
 
 addEventListener('beforeunload', (e) => { if (S.dirty) { e.preventDefault(); e.returnValue = ''; } });
-document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible' && S.token && !S.connected && cfg().auto !== false && cfg().codespaceName) wake();
+if (!DIRECT) document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && S.token && cfg().auto !== false && cfg().codespaceName) wake();
 });
 if ('serviceWorker' in navigator) navigator.serviceWorker.register(new URL('./sw.js', import.meta.url)).catch(() => {});
 
