@@ -4,33 +4,59 @@ import { createReadStream } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawn } from 'node:child_process';
+import { createHash } from 'node:crypto';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const publicDir = path.join(__dirname, 'public');
 const root = path.resolve(process.env.MOBILE_WORKSPACE_ROOT || process.env.CODESPACE_VSCODE_FOLDER || process.cwd());
 const port = Number(process.env.PORT || 4173);
 const host = process.env.HOST || '0.0.0.0';
+const codespaceName = process.env.CODESPACE_NAME || '';
+const forwardingDomain = process.env.GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN || 'app.github.dev';
+const pagesOrigin = process.env.MOBILE_PAGES_ORIGIN || 'https://arctic403.github.io';
 const MAX_FILE_BYTES = 2 * 1024 * 1024;
 const MAX_OUTPUT_BYTES = 2 * 1024 * 1024;
-
+const authCache = new Map();
 const ignoredNames = new Set(['.git', 'node_modules', '.next', 'dist', 'build', '.cache', '.turbo', '.vite']);
+
+class HttpError extends Error {
+  constructor(status, message) {
+    super(message);
+    this.status = status;
+  }
+}
+
+function allowedOrigin(origin) {
+  if (!origin) return true;
+  return origin === pagesOrigin || origin === `https://${codespaceName}-${port}.${forwardingDomain}`;
+}
+
+function applyCors(req, res) {
+  const origin = req.headers.origin;
+  if (origin && allowedOrigin(origin)) {
+    res.setHeader('access-control-allow-origin', origin);
+    res.setHeader('vary', 'Origin');
+    res.setHeader('access-control-allow-credentials', 'false');
+    res.setHeader('access-control-allow-headers', 'authorization, content-type');
+    res.setHeader('access-control-allow-methods', 'GET, PUT, POST, DELETE, OPTIONS');
+    res.setHeader('access-control-max-age', '600');
+  }
+}
 
 function json(res, status, payload) {
   const body = JSON.stringify(payload);
-  res.writeHead(status, {
-    'content-type': 'application/json; charset=utf-8',
-    'content-length': Buffer.byteLength(body),
-    'cache-control': 'no-store'
-  });
+  res.statusCode = status;
+  res.setHeader('content-type', 'application/json; charset=utf-8');
+  res.setHeader('content-length', Buffer.byteLength(body));
+  res.setHeader('cache-control', 'no-store');
   res.end(body);
 }
 
 function text(res, status, body, contentType = 'text/plain; charset=utf-8') {
-  res.writeHead(status, {
-    'content-type': contentType,
-    'content-length': Buffer.byteLength(body),
-    'cache-control': 'no-store'
-  });
+  res.statusCode = status;
+  res.setHeader('content-type', contentType);
+  res.setHeader('content-length', Buffer.byteLength(body));
+  res.setHeader('cache-control', 'no-store');
   res.end(body);
 }
 
@@ -39,7 +65,7 @@ async function readJson(req) {
   let size = 0;
   for await (const chunk of req) {
     size += chunk.length;
-    if (size > 3 * 1024 * 1024) throw new Error('Request body too large');
+    if (size > 3 * 1024 * 1024) throw new HttpError(413, 'Request body too large');
     chunks.push(chunk);
   }
   if (!chunks.length) return {};
@@ -50,7 +76,7 @@ function safePath(input = '') {
   const clean = String(input).replace(/^[/\\]+/, '');
   const resolved = path.resolve(root, clean);
   if (resolved !== root && !resolved.startsWith(root + path.sep)) {
-    throw new Error('Path is outside the workspace');
+    throw new HttpError(400, 'Path is outside the workspace');
   }
   return resolved;
 }
@@ -60,12 +86,44 @@ function relativeFromRoot(absPath) {
   return rel === '' ? '' : rel.split(path.sep).join('/');
 }
 
-function cwdFromInput(input = '') {
-  return safePath(input || '');
+async function authorize(req) {
+  const value = String(req.headers.authorization || '');
+  if (!value.startsWith('Bearer ')) throw new HttpError(401, 'GitHub token required');
+  const token = value.slice(7).trim();
+  if (!token) throw new HttpError(401, 'GitHub token required');
+
+  if (!codespaceName) {
+    const devToken = process.env.MOBILE_DEV_TOKEN || '';
+    if (devToken && token === devToken) return;
+    throw new HttpError(503, 'Codespace identity is unavailable');
+  }
+
+  const digest = createHash('sha256').update(token).digest('hex');
+  const cachedUntil = authCache.get(digest) || 0;
+  if (cachedUntil > Date.now()) return;
+
+  let response;
+  try {
+    response = await fetch(`https://api.github.com/user/codespaces/${encodeURIComponent(codespaceName)}`, {
+      headers: {
+        accept: 'application/vnd.github+json',
+        authorization: `Bearer ${token}`,
+        'x-github-api-version': '2022-11-28',
+        'user-agent': 'mobile-codespace'
+      }
+    });
+  } catch {
+    throw new HttpError(503, 'Could not verify GitHub access');
+  }
+
+  if (!response.ok) throw new HttpError(401, 'Token cannot access this Codespace');
+  const info = await response.json();
+  if (info?.name !== codespaceName) throw new HttpError(403, 'Codespace identity mismatch');
+  authCache.set(digest, Date.now() + 5 * 60 * 1000);
 }
 
 async function runProcess(command, args = [], options = {}) {
-  const cwd = cwdFromInput(options.cwd || '');
+  const cwd = safePath(options.cwd || '');
   const timeoutMs = options.timeoutMs ?? 120000;
   return new Promise((resolve) => {
     const child = spawn(command, args, {
@@ -114,9 +172,11 @@ async function runShell(command, cwd = '', timeoutMs = 120000) {
 }
 
 async function getGitStatus() {
-  const branchResult = await runShell('git branch --show-current 2>/dev/null || true');
-  const statusResult = await runShell('git status --porcelain=v1 -b 2>/dev/null || true');
-  const remoteResult = await runShell('git remote get-url origin 2>/dev/null || true');
+  const [branchResult, statusResult, remoteResult] = await Promise.all([
+    runShell('git branch --show-current 2>/dev/null || true'),
+    runShell('git status --porcelain=v1 -b 2>/dev/null || true'),
+    runShell('git remote get-url origin 2>/dev/null || true')
+  ]);
   const lines = statusResult.stdout.trimEnd().split('\n').filter(Boolean);
   const header = lines[0]?.startsWith('## ') ? lines.shift().slice(3) : '';
   return {
@@ -130,20 +190,19 @@ async function getGitStatus() {
 async function listDirectory(rel = '') {
   const dir = safePath(rel);
   const stat = await fs.stat(dir);
-  if (!stat.isDirectory()) throw new Error('Not a directory');
+  if (!stat.isDirectory()) throw new HttpError(400, 'Not a directory');
   const entries = await fs.readdir(dir, { withFileTypes: true });
-  const filtered = entries
+  return entries
     .filter((entry) => !ignoredNames.has(entry.name))
-    .sort((a, b) => Number(b.isDirectory()) - Number(a.isDirectory()) || a.name.localeCompare(b.name));
-
-  return filtered.map((entry) => ({
-    name: entry.name,
-    path: relativeFromRoot(path.join(dir, entry.name)),
-    type: entry.isDirectory() ? 'dir' : entry.isFile() ? 'file' : 'other'
-  }));
+    .sort((a, b) => Number(b.isDirectory()) - Number(a.isDirectory()) || a.name.localeCompare(b.name))
+    .map((entry) => ({
+      name: entry.name,
+      path: relativeFromRoot(path.join(dir, entry.name)),
+      type: entry.isDirectory() ? 'dir' : entry.isFile() ? 'file' : 'other'
+    }));
 }
 
-async function serveStatic(req, res, pathname) {
+async function serveStatic(res, pathname) {
   const requested = pathname === '/' ? 'index.html' : pathname.replace(/^\//, '');
   const abs = path.resolve(publicDir, requested);
   if (!abs.startsWith(publicDir + path.sep) && abs !== publicDir) return false;
@@ -160,10 +219,9 @@ async function serveStatic(req, res, pathname) {
       '.png': 'image/png',
       '.ico': 'image/x-icon'
     };
-    res.writeHead(200, {
-      'content-type': types[ext] || 'application/octet-stream',
-      'cache-control': ext === '.html' ? 'no-store' : 'public, max-age=300'
-    });
+    res.statusCode = 200;
+    res.setHeader('content-type', types[ext] || 'application/octet-stream');
+    res.setHeader('cache-control', ext === '.html' ? 'no-store' : 'public, max-age=300');
     createReadStream(abs).pipe(res);
     return true;
   } catch {
@@ -173,6 +231,7 @@ async function serveStatic(req, res, pathname) {
 
 async function api(req, res, url) {
   const pathname = url.pathname;
+  await authorize(req);
 
   if (req.method === 'GET' && pathname === '/api/status') {
     const [git, node, codex] = await Promise.all([
@@ -184,8 +243,9 @@ async function api(req, res, url) {
       ok: true,
       workspace: root,
       workspaceName: path.basename(root),
-      codespace: process.env.CODESPACE_NAME || '',
-      forwardingDomain: process.env.GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN || 'app.github.dev',
+      codespace: codespaceName,
+      forwardingDomain,
+      backendPort: port,
       node: node.stdout.trim(),
       codex: codex.stdout.trim() || null,
       git
@@ -201,8 +261,8 @@ async function api(req, res, url) {
     const rel = url.searchParams.get('path') || '';
     const abs = safePath(rel);
     const stat = await fs.stat(abs);
-    if (!stat.isFile()) throw new Error('Not a file');
-    if (stat.size > MAX_FILE_BYTES) throw new Error('File is too large for the mobile editor');
+    if (!stat.isFile()) throw new HttpError(400, 'Not a file');
+    if (stat.size > MAX_FILE_BYTES) throw new HttpError(413, 'File is too large for the mobile editor');
     const content = await fs.readFile(abs, 'utf8');
     return json(res, 200, { ok: true, path: relativeFromRoot(abs), content, size: stat.size });
   }
@@ -224,16 +284,15 @@ async function api(req, res, url) {
 
   if (req.method === 'DELETE' && pathname === '/api/path') {
     const rel = url.searchParams.get('path') || '';
-    if (!rel) throw new Error('Refusing to delete workspace root');
-    const abs = safePath(rel);
-    await fs.rm(abs, { recursive: true, force: false });
+    if (!rel) throw new HttpError(400, 'Refusing to delete workspace root');
+    await fs.rm(safePath(rel), { recursive: true, force: false });
     return json(res, 200, { ok: true });
   }
 
   if (req.method === 'POST' && pathname === '/api/command') {
     const body = await readJson(req);
     const command = String(body.command || '').trim();
-    if (!command) throw new Error('Command is required');
+    if (!command) throw new HttpError(400, 'Command is required');
     const result = await runShell(command, body.cwd || '', Math.min(Number(body.timeoutMs || 120000), 600000));
     return json(res, 200, { ok: true, result });
   }
@@ -244,7 +303,6 @@ async function api(req, res, url) {
 
   if (req.method === 'POST' && pathname === '/api/git/action') {
     const body = await readJson(req);
-    const action = body.action;
     const allowed = {
       stageAll: 'git add -A',
       unstageAll: 'git reset',
@@ -252,13 +310,13 @@ async function api(req, res, url) {
       push: 'git push',
       fetch: 'git fetch --prune'
     };
-    let command = allowed[action];
-    if (action === 'commit') {
+    let command = allowed[body.action];
+    if (body.action === 'commit') {
       const message = String(body.message || '').trim();
-      if (!message) throw new Error('Commit message is required');
+      if (!message) throw new HttpError(400, 'Commit message is required');
       command = `git commit -m ${JSON.stringify(message)}`;
     }
-    if (!command) throw new Error('Unsupported Git action');
+    if (!command) throw new HttpError(400, 'Unsupported Git action');
     const result = await runShell(command, '', 180000);
     return json(res, 200, { ok: true, result, git: await getGitStatus() });
   }
@@ -266,16 +324,9 @@ async function api(req, res, url) {
   if (req.method === 'POST' && pathname === '/api/codex') {
     const body = await readJson(req);
     const prompt = String(body.prompt || '').trim();
-    if (!prompt) throw new Error('Prompt is required');
+    if (!prompt) throw new HttpError(400, 'Prompt is required');
     const mode = body.mode === 'read-only' ? 'read-only' : 'workspace-write';
-    const args = [
-      'exec',
-      '--skip-git-repo-check',
-      '--sandbox', mode,
-      '--ask-for-approval', 'never',
-      '--color', 'never',
-      prompt
-    ];
+    const args = ['exec', '--skip-git-repo-check', '--sandbox', mode, '--ask-for-approval', 'never', '--color', 'never', prompt];
     const result = await runProcess('codex', args, { cwd: body.cwd || '', timeoutMs: 600000 });
     return json(res, 200, { ok: true, result });
   }
@@ -284,15 +335,23 @@ async function api(req, res, url) {
 }
 
 const server = http.createServer(async (req, res) => {
+  applyCors(req, res);
   try {
     const url = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`);
+
+    if (req.method === 'OPTIONS') {
+      if (!allowedOrigin(req.headers.origin)) return json(res, 403, { ok: false, error: 'Origin not allowed' });
+      res.statusCode = 204;
+      return res.end();
+    }
+
     if (url.pathname.startsWith('/api/')) {
       const handled = await api(req, res, url);
       if (handled !== false) return;
       return json(res, 404, { ok: false, error: 'API route not found' });
     }
 
-    if (await serveStatic(req, res, url.pathname)) return;
+    if (await serveStatic(res, url.pathname)) return;
     if (req.method === 'GET') {
       const index = await fs.readFile(path.join(publicDir, 'index.html'), 'utf8');
       return text(res, 200, index, 'text/html; charset=utf-8');
@@ -300,11 +359,12 @@ const server = http.createServer(async (req, res) => {
     return text(res, 404, 'Not found');
   } catch (error) {
     console.error(error);
-    return json(res, 400, { ok: false, error: error?.message || 'Unknown error' });
+    return json(res, Number(error?.status || 400), { ok: false, error: error?.message || 'Unknown error' });
   }
 });
 
 server.listen(port, host, () => {
-  console.log(`Mobile Codespace listening on http://${host}:${port}`);
+  console.log(`Mobile Codespace backend listening on http://${host}:${port}`);
   console.log(`Workspace root: ${root}`);
+  console.log(codespaceName ? `Codespace: ${codespaceName}` : 'Running outside GitHub Codespaces');
 });
