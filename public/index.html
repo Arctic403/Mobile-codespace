@@ -108,7 +108,7 @@
             <button id="codexRun" class="primary">Run Codex</button>
           </div>
         </div>
-        <div class="hint-card">Codex runs inside your Codespace. Workspace-write stays sandboxed to the workspace.</div>
+        <div class="hint-card">Codex runs inside your selected Codespace. Workspace-write stays sandboxed to that workspace.</div>
         <pre id="codexOutput" class="codex-output muted">Codex output appears here.</pre>
       </section>
 
@@ -140,34 +140,46 @@
         <div class="connection-logo">M</div>
         <button id="closeConnection" class="icon-btn connection-close" aria-label="Close">×</button>
       </div>
-      <h1>Your Codespace, without desktop VS Code.</h1>
-      <p>The UI stays on GitHub Pages. Your Linux machine can sleep when idle and wake again when you reconnect.</p>
+      <h1>Pick a Codespace and go.</h1>
+      <p>The UI lives here on GitHub Pages. Pick Ironvale, RiftOS, or another prepared Codespace and Mobile Codespace will wake it and connect.</p>
 
       <div class="connection-field">
         <label for="githubToken">Fine-grained GitHub token</label>
         <input id="githubToken" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="github_pat_…" />
       </div>
+
       <div class="connection-field">
-        <label for="backendUrl">Backend URL (optional override)</label>
-        <input id="backendUrl" type="url" inputmode="url" autocapitalize="off" spellcheck="false" placeholder="Auto-detected from your Codespace" />
+        <div class="connection-label-row">
+          <label for="codespaceSelect">Codespace</label>
+          <button id="refreshCodespaces" class="mini-link" type="button">Refresh list</button>
+        </div>
+        <select id="codespaceSelect">
+          <option value="">Load your Codespaces…</option>
+        </select>
       </div>
-      <label class="auto-wake-row"><input id="autoWake" type="checkbox" checked /> <span>Automatically wake the Codespace when I open this app</span></label>
+
+      <div class="connection-field">
+        <label for="backendUrl">Bridge URL (advanced override)</label>
+        <input id="backendUrl" type="url" inputmode="url" autocapitalize="off" spellcheck="false" placeholder="Auto-detected from selected Codespace" />
+      </div>
+
+      <label class="auto-wake-row"><input id="autoWake" type="checkbox" checked /> <span>Automatically wake my selected Codespace when I open this app</span></label>
 
       <div class="connection-actions">
         <button id="connectNow">Connect only</button>
         <button id="startCodespace" class="primary">Wake & connect</button>
       </div>
       <div class="connection-secondary">
-        <button id="stopCodespace">Stop Codespace</button>
+        <button id="stopCodespace">Stop selected</button>
         <button id="openCodespaces">Open GitHub</button>
         <button id="forgetConnection">Forget token</button>
       </div>
 
       <div id="connectionState" class="connection-state">
-        <span class="dot"></span><span id="connectionText">Connect your GitHub account to begin</span>
+        <span class="dot"></span><span id="connectionText">Paste your token, then load your Codespaces</span>
       </div>
       <div class="connection-help">
-        The token stays in Safari storage on this device and is never committed to the repo. For auto-wake, give it <strong>Codespaces metadata: Read</strong> and <strong>Codespaces lifecycle admin: Write</strong> for this repository.
+        Your token stays only in Safari storage on this device. It needs Codespaces access for the repositories you want to control. A target repo needs the tiny Mobile Bridge installed once; after that it can sleep and wake normally.
       </div>
     </div>
   </div>
