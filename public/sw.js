@@ -1,6 +1,6 @@
-const CACHE = 'mobile-codespace-v3';
+const CACHE = 'mobile-codespace-v4-private';
 const base = new URL('./', self.location.href);
-const SHELL = ['./', './styles.css', './connection.css', './app.js', './manifest.json'].map((p) => new URL(p, base).href);
+const SHELL = ['./', './styles.css', './connection.css', './mode.css', './app.js', './manifest.json'].map((p) => new URL(p, base).href);
 
 self.addEventListener('install', (event) => {
   event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(SHELL)).then(() => self.skipWaiting()));
