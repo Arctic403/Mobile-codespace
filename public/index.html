@@ -10,6 +10,7 @@
   <link rel="manifest" href="./manifest.json" />
   <link rel="stylesheet" href="./styles.css" />
   <link rel="stylesheet" href="./connection.css" />
+  <link rel="stylesheet" href="./mode.css" />
   <title>Mobile Codespace</title>
 </head>
 <body>
@@ -23,12 +24,12 @@
         </div>
       </div>
       <div class="top-actions">
-        <button id="connectionBtn" class="icon-btn" aria-label="Connection">⌁</button>
+        <button id="connectionBtn" class="icon-btn" aria-label="Codespaces">⌁</button>
         <button id="refreshBtn" class="icon-btn" aria-label="Refresh">↻</button>
       </div>
     </header>
 
-    <div id="statusStrip" class="status-strip">
+    <div class="status-strip">
       <span class="status-dot connecting"></span>
       <span id="branchLabel">—</span>
       <span class="status-spacer"></span>
@@ -42,7 +43,7 @@
           <button id="newBtn" class="pill-btn">＋ New</button>
         </div>
         <div id="breadcrumbs" class="breadcrumbs"></div>
-        <div id="fileList" class="file-list"><div class="empty">Connect your Codespace to browse files.</div></div>
+        <div id="fileList" class="file-list"><div class="empty">Open a Codespace to browse files.</div></div>
       </section>
 
       <section class="panel" data-panel="editor">
@@ -56,10 +57,7 @@
       </section>
 
       <section class="panel" data-panel="terminal">
-        <div class="panel-head compact">
-          <div><p class="eyebrow">Codespace</p><h1>Terminal</h1></div>
-          <button id="clearTerminal" class="pill-btn">Clear</button>
-        </div>
+        <div class="panel-head compact"><div><p class="eyebrow">Codespace</p><h1>Terminal</h1></div><button id="clearTerminal" class="pill-btn">Clear</button></div>
         <div class="quick-row">
           <button data-command="git status">git status</button>
           <button data-command="npm test">npm test</button>
@@ -75,11 +73,8 @@
       </section>
 
       <section class="panel" data-panel="git">
-        <div class="panel-head compact">
-          <div><p class="eyebrow">Source Control</p><h1>Git</h1></div>
-          <button id="gitRefresh" class="pill-btn">Refresh</button>
-        </div>
-        <div id="gitCard" class="git-card"><div class="muted">Connect your Codespace first.</div></div>
+        <div class="panel-head compact"><div><p class="eyebrow">Source Control</p><h1>Git</h1></div><button id="gitRefresh" class="pill-btn">Refresh</button></div>
+        <div id="gitCard" class="git-card"><div class="muted">Open a Codespace first.</div></div>
         <div class="commit-box">
           <input id="commitMessage" type="text" placeholder="Commit message" autocomplete="off" />
           <div class="button-grid">
@@ -93,13 +88,10 @@
       </section>
 
       <section class="panel" data-panel="codex">
-        <div class="panel-head compact">
-          <div><p class="eyebrow">AI Agent</p><h1>Codex</h1></div>
-          <span id="codexBadge" class="badge">offline</span>
-        </div>
+        <div class="panel-head compact"><div><p class="eyebrow">AI Agent</p><h1>Codex</h1></div><span id="codexBadge" class="badge">offline</span></div>
         <div class="codex-card">
           <label for="codexPrompt">Task</label>
-          <textarea id="codexPrompt" placeholder="Example: Audit this repo, fix the mobile layout, run tests, and summarize what changed."></textarea>
+          <textarea id="codexPrompt" placeholder="Audit this repo, fix an issue, run tests, and summarize what changed."></textarea>
           <div class="codex-controls">
             <select id="codexMode" aria-label="Codex sandbox mode">
               <option value="workspace-write">Workspace write</option>
@@ -108,7 +100,7 @@
             <button id="codexRun" class="primary">Run Codex</button>
           </div>
         </div>
-        <div class="hint-card">Codex runs inside your selected Codespace. Workspace-write stays sandboxed to that workspace.</div>
+        <div class="hint-card">Codex runs inside the selected Codespace and edits that workspace.</div>
         <pre id="codexOutput" class="codex-output muted">Codex output appears here.</pre>
       </section>
 
@@ -120,7 +112,7 @@
             <input id="previewPort" type="number" inputmode="numeric" value="3000" min="1" max="65535" />
             <button id="openPreview" class="primary">Open</button>
           </div>
-          <p id="previewUrl" class="preview-url">Connect a Codespace first.</p>
+          <p id="previewUrl" class="preview-url">Open a Codespace first.</p>
         </div>
       </section>
     </main>
@@ -140,47 +132,34 @@
         <div class="connection-logo">M</div>
         <button id="closeConnection" class="icon-btn connection-close" aria-label="Close">×</button>
       </div>
-      <h1>Pick a Codespace and go.</h1>
-      <p>The UI lives here on GitHub Pages. Pick Ironvale, RiftOS, or another prepared Codespace and Mobile Codespace will wake it and connect.</p>
+      <h1>Pick a Codespace.</h1>
+      <p>GitHub Pages is only the launcher. It wakes your Codespace, then opens the private Mobile Bridge that GitHub already protects with your account.</p>
 
-      <div class="connection-field">
+      <div class="connection-field launcher-only">
         <label for="githubToken">Fine-grained GitHub token</label>
         <input id="githubToken" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="github_pat_…" />
       </div>
 
-      <div class="connection-field">
-        <div class="connection-label-row">
-          <label for="codespaceSelect">Codespace</label>
-          <button id="refreshCodespaces" class="mini-link" type="button">Refresh list</button>
-        </div>
-        <select id="codespaceSelect">
-          <option value="">Load your Codespaces…</option>
-        </select>
+      <div class="connection-field launcher-only">
+        <div class="connection-label-row"><label for="codespaceSelect">Codespace</label><button id="refreshCodespaces" class="mini-btn" type="button">Refresh</button></div>
+        <select id="codespaceSelect"><option>Load your Codespaces…</option></select>
       </div>
 
-      <div class="connection-field">
-        <label for="backendUrl">Bridge URL (advanced override)</label>
-        <input id="backendUrl" type="url" inputmode="url" autocapitalize="off" spellcheck="false" placeholder="Auto-detected from selected Codespace" />
-      </div>
+      <label class="auto-wake-row launcher-only"><input id="autoWake" type="checkbox" checked /> <span>Automatically wake and open my selected Codespace</span></label>
 
-      <label class="auto-wake-row"><input id="autoWake" type="checkbox" checked /> <span>Automatically wake my selected Codespace when I open this app</span></label>
-
-      <div class="connection-actions">
-        <button id="connectNow">Connect only</button>
-        <button id="startCodespace" class="primary">Wake & connect</button>
+      <div class="connection-actions launcher-only">
+        <button id="connectNow">Open if awake</button>
+        <button id="startCodespace" class="primary">Wake & open</button>
       </div>
       <div class="connection-secondary">
-        <button id="stopCodespace">Stop selected</button>
+        <button id="stopCodespace">Stop / Launcher</button>
         <button id="openCodespaces">Open GitHub</button>
         <button id="forgetConnection">Forget token</button>
       </div>
 
-      <div id="connectionState" class="connection-state">
-        <span class="dot"></span><span id="connectionText">Paste your token, then load your Codespaces</span>
-      </div>
-      <div class="connection-help">
-        Your token stays only in Safari storage on this device. It needs Codespaces access for the repositories you want to control. A target repo needs the tiny Mobile Bridge installed once; after that it can sleep and wake normally.
-      </div>
+      <div id="connectionState" class="connection-state"><span class="dot"></span><span id="connectionText">Connecting…</span></div>
+      <div class="connection-help launcher-only">Keep bridge port <strong>4173 Private</strong>. That is now intentional. The token is used only by the Pages launcher to list/start/stop your Codespaces and stays in Safari storage on this device.</div>
+      <div class="connection-help workspace-only">You are inside GitHub's private Codespaces tunnel. Tap the chain button at the top to return to the launcher and switch Codespaces.</div>
     </div>
   </div>
 
