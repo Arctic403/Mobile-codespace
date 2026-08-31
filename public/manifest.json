@@ -1,7 +1,8 @@
 {
   "name": "Mobile Codespace",
   "short_name": "Codespace",
-  "start_url": "/",
+  "start_url": "./",
+  "scope": "./",
   "display": "standalone",
   "background_color": "#080809",
   "theme_color": "#080809",
