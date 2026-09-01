@@ -1,60 +1,50 @@
-# Mobile Codespace Profile
+# Mobile Codespace Shell
 
-A mobile-first configuration for **native GitHub Codespaces / VS Code for the Web**.
+A phone-first layout for **native GitHub Codespaces / VS Code**. This project does not replace Codespaces, proxy it through another server, or require a separate web app. It reshapes the real Codespaces UI for a small touch screen.
 
-This repo no longer replaces Codespaces with a second IDE. It customizes the real VS Code workbench so iPhone/Safari gets the same terminal, Git, extensions, forwarded ports, authentication, and Codex access with a much cleaner layout.
+## What the mobile shell changes
 
-## What changes
+- Desktop Activity Bar hidden.
+- Editor tab strip removed.
+- Command Center and layout chrome removed.
+- Terminal opens as a maximized mobile screen.
+- Explorer/Search/Git become focused native screens.
+- Minimap, breadcrumbs, sticky scroll, folding gutter and other desktop clutter are removed.
+- Larger editor/terminal text and touch-friendly padding.
+- Auto-save enabled for phone editing.
+- Codex CLI installed in the Codespace.
+- A local VS Code extension adds persistent bottom navigation.
 
-- Activity Bar moves to the bottom so the main views act more like mobile navigation.
-- Editor tabs collapse to a single compact tab.
-- Minimap, breadcrumbs, sticky scroll, and other desktop-only clutter are removed.
-- Preview tabs are disabled so files behave predictably on touch.
-- Terminal tabs are simplified.
-- A tiny local **Mobile Codespace Profile** extension adds one `Mobile` status-bar button with layout actions:
-  - Files + Editor
-  - Editor Only
-  - Terminal
-  - Source Control
-  - Search
-  - Codex CLI
-  - Zen Mode
-  - Full Screen
-  - Zoom controls
+## Bottom navigation
 
-The extension does not replace VS Code. It only calls native VS Code commands.
+The extension adds six always-available native status-bar buttons:
 
-## First run
+**Home · Files · Search · Git · Terminal · Codex**
 
-1. Create a Codespace from this repo.
-2. If the Codespace already existed before this profile was added, run **Codespaces: Rebuild Container** once.
-3. When VS Code attaches, `scripts/install-profile.sh` packages and installs the local layout extension automatically.
-4. If the `Mobile` button does not appear, run:
+The active section is bracket-highlighted. These buttons only call native VS Code commands; they do not duplicate the file system, terminal, Git integration, authentication, or editor.
 
-```bash
-bash scripts/install-profile.sh
-```
+## Mobile Home
 
-Then run **Developer: Reload Window** from the Command Palette.
+When no file is open, the shell launches a touch dashboard with large controls for Files, Search, Git, Terminal, Codex, Editor Focus, Zen Mode, Full Screen, and zoom.
 
-## Codex
+## Fresh Codespace setup
 
-The devcontainer installs the current Codex CLI. The `Mobile` menu has a **Codex CLI** action that opens a dedicated integrated terminal and starts `codex`. If you also use the Codex IDE extension, it remains available normally; this profile does not interfere with it.
+The cleanest test is to create a new Codespace from this repository. The devcontainer will:
 
-## Use this in another repo
+1. Apply the phone-first VS Code settings.
+2. Install Codex CLI.
+3. Validate the profile.
+4. Package and install the local Mobile Codespace Shell extension when VS Code attaches.
 
-Copy these pieces into the target repo:
+If the bottom navigation does not appear immediately after the first install, run **Developer: Reload Window** once.
 
-```text
-.devcontainer/devcontainer.json
-.vscode/settings.json
-extension/
-scripts/install-profile.sh
-scripts/validate-json.mjs
-```
+## Reusing it in another repo
 
-Then merge any existing devcontainer settings rather than blindly replacing them.
+Copy these pieces into the target repository:
 
-## Philosophy
+- `.vscode/settings.json`
+- `extension/`
+- `scripts/install-profile.sh`
+- the relevant `customizations.vscode.settings` and `postAttachCommand` from `.devcontainer/devcontainer.json`
 
-Keep GitHub Codespaces as the computer. Keep VS Code as the IDE. Only change the layout and touch workflow.
+That keeps the target project's real devcontainer/build stack while applying the phone UI on top.
