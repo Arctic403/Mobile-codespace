@@ -19,12 +19,6 @@ if [[ -z "$CODE_BIN" ]]; then
   exit 0
 fi
 
-EXT_ID="arctic403.mobile-codespace-profile"
-if "$CODE_BIN" --list-extensions 2>/dev/null | grep -Fxqi "$EXT_ID"; then
-  echo "Mobile Codespace Profile extension is already installed."
-  exit 0
-fi
-
 mkdir -p dist
 (
   cd extension
@@ -32,4 +26,6 @@ mkdir -p dist
 )
 
 "$CODE_BIN" --install-extension "$ROOT/dist/mobile-codespace-profile.vsix" --force
-echo "Mobile Codespace Profile installed. Reload the VS Code window if the Mobile button is not visible yet."
+
+echo "Mobile Codespace Shell installed/refreshed."
+echo "If the bottom navigation is not visible yet, run: Developer: Reload Window"
