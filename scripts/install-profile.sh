@@ -22,10 +22,10 @@ fi
 mkdir -p dist
 (
   cd extension
-  npx --yes @vscode/vsce@latest package --out ../dist/mobile-codespace-profile.vsix
+  npx --yes @vscode/vsce@latest package --allow-missing-repository --out ../dist/mobile-codespace-profile.vsix
 )
 
 "$CODE_BIN" --install-extension "$ROOT/dist/mobile-codespace-profile.vsix" --force
 
-echo "Mobile Codespace Shell installed/refreshed."
-echo "If the bottom navigation is not visible yet, run: Developer: Reload Window"
+echo "Mobile Codespace Overlay installed/refreshed."
+echo "Run 'Developer: Reload Window' once if the overlay does not open immediately."
