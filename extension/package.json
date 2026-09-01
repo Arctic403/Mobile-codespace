@@ -3,8 +3,13 @@
   "displayName": "Mobile Codespace Overlay",
   "description": "A full phone-first workbench overlay for GitHub Codespaces.",
   "publisher": "arctic403",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Arctic403/Mobile-codespace.git"
+  },
+  "homepage": "https://github.com/Arctic403/Mobile-codespace",
   "engines": {
     "vscode": "^1.100.0"
   },
