@@ -1,28 +1,53 @@
 {
   "name": "mobile-codespace-profile",
-  "displayName": "Mobile Codespace Shell",
-  "description": "A phone-first shell for native VS Code and GitHub Codespaces.",
+  "displayName": "Mobile Codespace Overlay",
+  "description": "A full phone-first workbench overlay for GitHub Codespaces.",
   "publisher": "arctic403",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "license": "MIT",
   "engines": {
     "vscode": "^1.100.0"
   },
-  "categories": ["Other"],
-  "activationEvents": ["onStartupFinished"],
+  "extensionKind": [
+    "workspace"
+  ],
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
   "main": "./extension.js",
   "contributes": {
     "commands": [
-      { "command": "mobileCodespace.home", "title": "Mobile: Home" },
-      { "command": "mobileCodespace.files", "title": "Mobile: Files" },
-      { "command": "mobileCodespace.search", "title": "Mobile: Search" },
-      { "command": "mobileCodespace.git", "title": "Mobile: Source Control" },
-      { "command": "mobileCodespace.terminal", "title": "Mobile: Terminal" },
-      { "command": "mobileCodespace.codex", "title": "Mobile: Codex" },
-      { "command": "mobileCodespace.editor", "title": "Mobile: Editor Focus" },
-      { "command": "mobileCodespace.more", "title": "Mobile: More Controls" },
-      { "command": "mobileCodespace.zen", "title": "Mobile: Toggle Zen Mode" },
-      { "command": "mobileCodespace.fullscreen", "title": "Mobile: Toggle Full Screen" }
+      {
+        "command": "mobileCodespace.open",
+        "title": "Mobile: Open Full Overlay"
+      },
+      {
+        "command": "mobileCodespace.home",
+        "title": "Mobile: Home"
+      },
+      {
+        "command": "mobileCodespace.files",
+        "title": "Mobile: Files"
+      },
+      {
+        "command": "mobileCodespace.search",
+        "title": "Mobile: Search"
+      },
+      {
+        "command": "mobileCodespace.git",
+        "title": "Mobile: Git"
+      },
+      {
+        "command": "mobileCodespace.terminal",
+        "title": "Mobile: Terminal"
+      },
+      {
+        "command": "mobileCodespace.codex",
+        "title": "Mobile: Codex"
+      }
     ]
   }
 }
