@@ -1,0 +1,58 @@
+{
+  "name": "mobile-codespace-profile",
+  "displayName": "Mobile Codespace Profile",
+  "description": "Touch-friendly one-tap layouts for native VS Code / GitHub Codespaces.",
+  "publisher": "arctic403",
+  "version": "0.1.0",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.100.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "mobileCodespace.menu",
+        "title": "Mobile: Open Layout Menu"
+      },
+      {
+        "command": "mobileCodespace.files",
+        "title": "Mobile: Files + Editor"
+      },
+      {
+        "command": "mobileCodespace.editor",
+        "title": "Mobile: Editor Only"
+      },
+      {
+        "command": "mobileCodespace.terminal",
+        "title": "Mobile: Terminal"
+      },
+      {
+        "command": "mobileCodespace.git",
+        "title": "Mobile: Source Control"
+      },
+      {
+        "command": "mobileCodespace.search",
+        "title": "Mobile: Search"
+      },
+      {
+        "command": "mobileCodespace.codex",
+        "title": "Mobile: Codex CLI"
+      },
+      {
+        "command": "mobileCodespace.zen",
+        "title": "Mobile: Toggle Zen Mode"
+      },
+      {
+        "command": "mobileCodespace.fullscreen",
+        "title": "Mobile: Toggle Full Screen"
+      }
+    ]
+  }
+}

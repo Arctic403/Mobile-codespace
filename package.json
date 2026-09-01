@@ -1,15 +1,10 @@
 {
-  "name": "mobile-codespace",
-  "version": "0.1.0",
+  "name": "mobile-codespace-profile",
+  "version": "2.0.0",
   "private": true,
-  "type": "module",
-  "description": "Mobile-first Safari control surface for GitHub Codespaces",
+  "description": "Mobile-first GitHub Codespaces / VS Code profile",
   "scripts": {
-    "start": "node server.mjs",
-    "dev": "node server.mjs",
-    "check": "node --check server.mjs && node --check public/app.js"
-  },
-  "engines": {
-    "node": ">=20"
+    "check": "node --check extension/extension.js && node scripts/validate-json.mjs",
+    "package:extension": "mkdir -p dist && cd extension && npx --yes @vscode/vsce@latest package --out ../dist/mobile-codespace-profile.vsix"
   }
 }

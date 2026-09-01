@@ -1,20 +1,19 @@
 {
-  "name": "Mobile Codespace",
+  "name": "Mobile-first Codespaces",
   "image": "mcr.microsoft.com/devcontainers/javascript-node:1-22-bookworm",
-  "forwardPorts": [4173],
-  "portsAttributes": {
-    "4173": {
-      "label": "Mobile Codespace Backend",
-      "onAutoForward": "silent"
-    }
-  },
-  "postCreateCommand": "npm install -g @openai/codex@latest --include=optional && npm run check",
-  "postStartCommand": "bash .devcontainer/start-mobile.sh",
   "customizations": {
     "vscode": {
       "settings": {
-        "workbench.startupEditor": "none"
+        "workbench.activityBar.location": "bottom",
+        "workbench.editor.showTabs": "single",
+        "workbench.editor.enablePreview": false,
+        "window.commandCenter": false,
+        "editor.minimap.enabled": false,
+        "breadcrumbs.enabled": false,
+        "terminal.integrated.tabs.enabled": false
       }
     }
-  }
+  },
+  "postCreateCommand": "npm install -g @openai/codex@latest --include=optional && npm run check",
+  "postAttachCommand": "bash scripts/install-profile.sh"
 }
