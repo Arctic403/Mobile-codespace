@@ -4,10 +4,15 @@
   "customizations": {
     "vscode": {
       "settings": {
-        "workbench.activityBar.location": "bottom",
-        "workbench.editor.showTabs": "single",
+        "workbench.activityBar.location": "hidden",
+        "workbench.panel.defaultLocation": "bottom",
+        "workbench.panel.opensMaximized": "always",
+        "workbench.editor.showTabs": "none",
         "workbench.editor.enablePreview": false,
+        "workbench.statusBar.visible": true,
+        "workbench.startupEditor": "none",
         "window.commandCenter": false,
+        "workbench.layoutControl.enabled": false,
         "editor.minimap.enabled": false,
         "breadcrumbs.enabled": false,
         "terminal.integrated.tabs.enabled": false
